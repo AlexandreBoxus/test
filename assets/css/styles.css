@@ -96,7 +96,7 @@ p { margin: 0 0 1em; }
 .link-more { display: inline-flex; align-items: center; gap: .25em; font-weight: 700; text-decoration: none; }
 
 /* ---------- En-tête ---------- */
-.site-header { position: sticky; top: 0; z-index: 50; background: rgba(251, 248, 242, .92); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.site-header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; background: rgba(251, 248, 242, .92); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
 .header-inner { display: flex; align-items: center; gap: 20px; min-height: var(--header-h); }
 .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--green-800); margin-right: auto; }
 .brand-logo { width: 42px; height: 42px; }

@@ -164,7 +164,7 @@
   /* ---------------- Partage ---------------- */
   UI.shareButtons = (title) =>
     `<div class="share" data-share-title="${U.esc(title)}">
-      <button type="button" class="btn btn-soft btn-sm" data-share="facebook">${UI.icon('Facebook')}Facebook</button>
+      <a class="btn btn-soft btn-sm" data-share="facebook" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(location.href)}" target="_blank" rel="noopener">${UI.icon('Facebook')}Facebook</a>
       <button type="button" class="btn btn-soft btn-sm" data-share="instagram">${UI.icon('Instagram')}Instagram</button>
       <button type="button" class="btn btn-soft btn-sm" data-share="copy">${UI.icon('Link')}Copier le lien</button>
     </div>`;
@@ -172,10 +172,7 @@
   UI.handleShare = async (kind, title) => {
     const url = location.href;
     WA.Store.track('share');
-    if (kind === 'facebook') {
-      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,width=620,height=560');
-      return;
-    }
+    if (kind === 'facebook') return; // lien direct vers le partage Facebook
     if (kind === 'instagram' && navigator.share) {
       try {
         await navigator.share({ title, text: `${title} – Réseau Associatif de Walhain`, url });
@@ -191,7 +188,6 @@
     }
     if (kind === 'instagram') {
       UI.toast("Lien copié : collez-le dans votre story ou votre bio Instagram (Instagram ne permet pas le partage direct depuis un site web).");
-      window.open('https://www.instagram.com/', '_blank', 'noopener');
     } else UI.toast('Lien copié dans le presse-papiers.');
   };
 
@@ -204,7 +200,7 @@
   /* ---------------- Export PDF (via l'impression du navigateur) ---------------- */
   UI.exportAssociationPdf = (a) => {
     const w = window.open('', '_blank');
-    if (!w) return UI.toast("Autorisez l'ouverture des fenêtres pour exporter la fiche.", 'error');
+    if (!w) return UI.toast("L'export PDF a besoin d'ouvrir une nouvelle fenêtre : autorisez les fenêtres pop-up pour ce site.", 'error');
     WA.Store.track('export');
     const themes = a.themes.map((t) => WA.theme(t).label).join(' · ');
     const row = (label, value) => (value ? `<tr><th>${label}</th><td>${U.esc(value)}</td></tr>` : '');
