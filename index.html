@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Réseau Associatif de Walhain</title>
+  <meta name="description" content="Portail des associations de la Commune de Walhain : répertoire, agenda associatif partagé et carte interactive.">
+  <meta name="theme-color" content="#2f6b35">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f6b35'/%3E%3Cpath d='M8 46c10-10 20-12 28-6s14 4 20-2v18H8z' fill='%23a7d08c'/%3E%3Cpath d='M32 14c8 4 10 12 6 20-8-2-12-8-6-20z' fill='%23f5efe3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#app">Aller au contenu</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#/" aria-label="Réseau Associatif de Walhain – accueil">
+        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#2f6b35"/><path d="M6 46c10-10 20-12 28-6s14 4 24-2v20H6z" fill="#a7d08c"/><path d="M6 52c14-6 26-6 36-1s12 3 16 1v10H6z" fill="#e9dfc9"/><path d="M33 12c9 4 11 13 6 21-9-2-13-9-6-21z" fill="#f5efe3"/><path d="M36 33c-2-6-2-11 0-16" stroke="#2f6b35" stroke-width="2" fill="none"/></svg>
+        <span class="brand-text"><strong>Réseau Associatif</strong><span>de Walhain</span></span>
+      </a>
+      <button class="nav-toggle icon-btn" id="nav-toggle" aria-expanded="false" aria-controls="main-nav" aria-label="Menu"><span data-icon="Menu"></span></button>
+      <nav class="main-nav" id="main-nav" aria-label="Navigation principale">
+        <a href="#/" data-section="accueil"><span data-icon="Home"></span>Accueil</a>
+        <a href="#/associations" data-section="repertoire"><span data-icon="Users"></span>Associations</a>
+        <a href="#/agenda" data-section="agenda"><span data-icon="CalendarDays"></span>Agenda</a>
+        <a href="#/carte" data-section="carte"><span data-icon="Map"></span>Carte</a>
+        <a href="#/admin" data-section="admin" class="nav-admin"><span data-icon="Lock"></span>Admin<b class="count" id="admin-badge" hidden></b></a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app" tabindex="-1"></main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <p class="footer-brand">Réseau Associatif de Walhain</p>
+        <p class="small">Le portail numérique des associations de Walhain, Tourinnes-Saint-Lambert, Perbais, Nil-Saint-Vincent et Nil-Pierreux.</p>
+        <p class="small">Commune de Walhain · CLDR · Fondation Rurale de Wallonie</p>
+      </div>
+      <nav aria-label="Liens utiles">
+        <p class="footer-title">Participer</p>
+        <ul class="plain">
+          <li><a href="#/associations/nouvelle">Référencer une association</a></li>
+          <li><a href="#/agenda/nouveau">Publier un événement</a></li>
+          <li><a href="#/confidentialite">Confidentialité (RGPD)</a></li>
+          <li><a href="#/newsletter/desinscription">Se désinscrire de la newsletter</a></li>
+        </ul>
+      </nav>
+      <form class="newsletter" id="newsletter-form" novalidate>
+        <p class="footer-title"><span data-icon="Newspaper"></span>Newsletter</p>
+        <p class="small">Recevez chaque semaine les activités à venir.</p>
+        <div class="newsletter-row">
+          <label class="sr-only" for="nl-email">Adresse e-mail</label>
+          <input id="nl-email" type="email" name="email" placeholder="votre@email.be" autocomplete="email" required>
+          <button class="btn btn-accent">S'inscrire</button>
+        </div>
+        <label class="check small"><input type="checkbox" name="consent" required><span>J'accepte de recevoir la newsletter. Désinscription possible à tout moment.</span></label>
+      </form>
+    </div>
+    <div class="container footer-bottom small">© <span id="year"></span> Commune de Walhain – Prototype</div>
+  </footer>
+
+  <div class="consent" id="consent" role="region" aria-label="Information sur la vie privée" hidden>
+    <p><span data-icon="Cookie"></span>Ce portail n'utilise <strong>aucun cookie publicitaire ni traceur</strong>. Le stockage local sert uniquement à son fonctionnement. <a href="#/confidentialite">En savoir plus</a></p>
+    <button class="btn btn-primary btn-sm">J'ai compris</button>
+  </div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="assets/js/utils.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/seed.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/directory.js"></script>
+  <script src="assets/js/agenda.js"></script>
+  <script src="assets/js/forms.js"></script>
+  <script src="assets/js/map.js"></script>
+  <script src="assets/js/admin.js"></script>
+  <script src="assets/js/pages.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

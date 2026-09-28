@@ -1,0 +1,11 @@
+{
+  "name": "reseau-associatif-walhain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype du portail des associations de la Commune de Walhain (répertoire, agenda, carte, administration).",
+  "scripts": {
+    "start": "npx --yes http-server . -p 8080 -c-1",
+    "test": "node --test tests/utils.test.js"
+  },
+  "license": "UNLICENSED"
+}
