@@ -78,7 +78,7 @@ assets/js/
   icons.js              pictogrammes (extraits de Lucide, licence ISC)
   config.js             villages, thématiques, publics cibles
   seed.js               données initiales (fiches individuelles)
-  store.js              couche de données (localStorage) : CRUD, validation, stats, session
+  store.js              couche de données (locale ou Firebase) : CRUD, validation, stats, session
   ui.js                 composants : modales, notifications, contact, partage, PDF, .ics
   directory.js          module Répertoire
   agenda.js             module Agenda
@@ -87,17 +87,38 @@ assets/js/
   admin.js              espace administration
   pages.js              accueil, confidentialité, pages annexes
   app.js                routeur (#/…) et initialisation
+  firebase-config.js    configuration Firebase (null = mode démonstration)
+  remote.js             connecteur Firebase (Firestore temps réel + Authentication)
 vendor/leaflet/         Leaflet 1.9.4 (licence BSD-2), embarqué pour fonctionner hors CDN
+vendor/firebase/        SDK Firebase 12 (Apache-2.0), chargé uniquement en mode base partagée
+firestore.rules         règles de sécurité de la base
+firebase.json           configuration Firebase CLI (règles, émulateurs, hébergement optionnel)
+docs/FIREBASE.md        guide de mise en service
 tests/                  tests unitaires (node --test)
 ```
 
-## Limites du prototype et passage en production
+## Deux modes de fonctionnement
 
-Toutes les données sont stockées **dans le navigateur** (localStorage). Chaque poste a donc ses propres données, et la sécurité de l'espace admin reste celle d'une démonstration. Pour une mise en service :
+| | Mode démonstration (par défaut) | Mode base partagée (Firebase) |
+|---|---|---|
+| Activation | `WA.FIREBASE_CONFIG = null` | Configuration Firebase renseignée dans `assets/js/firebase-config.js` |
+| Données | Dans le navigateur de chaque visiteur | Partagées par tous, mises à jour en temps réel |
+| Demande d'une association | Visible seulement sur le même navigateur | Arrive dans **Admin → Validation**, sur n'importe quel ordinateur |
+| Connexion admin | `admin` / `Walhain2026!` | E-mail et mot de passe (Firebase Authentication), avec réinitialisation par e-mail |
+| Sécurité | Démonstration | Règles côté serveur (`firestore.rules`) |
 
-1. **Backend et base de données** : remplacer `store.js` par des appels à une API (Node, PHP/Laravel, Supabase, Directus…). Les écrans passent tous par `WA.Store` et n'ont pas à être modifiés.
-2. **Authentification serveur** : mots de passe hachés avec bcrypt ou argon2, sessions HTTP-only, HTTPS. Éventuellement, comptes pour les associations afin qu'elles gèrent elles-mêmes leur fiche.
-3. **E-mails** : envoi réel des formulaires de contact et de la newsletter via un service SMTP (Brevo, Mailjet, SMTP communal), avec double opt-in.
-4. **Stockage des images** sur le serveur plutôt qu'en base64.
-5. **RGPD** : compléter les coordonnées du DPO dans la politique de confidentialité et inscrire les traitements au registre.
-6. **Géocodage** des adresses pour positionner précisément les associations.
+**Mise en service réelle : suivez le guide [docs/FIREBASE.md](docs/FIREBASE.md)** (environ 20 minutes, offre gratuite).
+
+Le passage en mode base partagée a été testé avec les émulateurs Firebase et plusieurs navigateurs simultanés :
+- demande d'adhésion, validation et publication ;
+- proposition de modification d'une fiche ;
+- messages et newsletter ;
+- création d'un modérateur ;
+- blocage des écritures et lectures non autorisées.
+
+## Limites restantes
+
+1. **E-mails** : les messages de contact et la newsletter sont centralisés dans l'admin mais pas encore envoyés automatiquement. Il faudrait ajouter l'extension Firebase *Trigger Email* (forfait Blaze) ou un service comme Brevo ou Mailjet.
+2. **Images** : elles sont stockées dans les fiches, compressées à 900 px. Pour un usage intensif, prévoir Firebase Storage.
+3. **RGPD** : compléter les coordonnées du DPO dans la politique de confidentialité et inscrire les traitements au registre.
+4. **Géocodage** des adresses, pour positionner précisément les associations sur la carte.

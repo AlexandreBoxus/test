@@ -150,7 +150,7 @@
 
     WA.Map && WA.Map.picker(root.querySelector('#pick-map'), form, () => form.querySelectorAll('input[name="villages"]:checked')[0]);
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
       const get = (k) => String(fd.get(k) || '').trim();
@@ -195,7 +195,15 @@
         partners: get('partners'),
         needs: get('needs'),
       };
+      const button = form.querySelector('button.btn-primary');
+      button.disabled = true;
       const saved = Store.saveAssociation(data, { asAdmin: Store.isAdmin() });
+      try {
+        await Store.flush();
+      } catch (err) {
+        button.disabled = false;
+        return UI.formError(form, `L'enregistrement a échoué. ${WA.Remote.errorMessage(err)}`);
+      }
       if (Store.isAdmin()) {
         UI.toast('Fiche enregistrée et publiée.');
         location.hash = `#/associations/${saved.id}`;
@@ -332,7 +340,7 @@
     });
     update();
 
-    form.addEventListener('submit', (ev) => {
+    form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const fd = new FormData(form);
       const get = (k) => String(fd.get(k) || '').trim();
@@ -373,7 +381,15 @@
         contactPhone: get('contactPhone'),
         tentative: Store.isAdmin() ? !!fd.get('tentative') : false,
       };
+      const button = form.querySelector('button.btn-primary');
+      button.disabled = true;
       const saved = Store.saveEvent(data, { asAdmin: Store.isAdmin() });
+      try {
+        await Store.flush();
+      } catch (err) {
+        button.disabled = false;
+        return UI.formError(form, `L'enregistrement a échoué. ${WA.Remote.errorMessage(err)}`);
+      }
       if (Store.isAdmin()) {
         UI.toast('Événement enregistré.');
         location.hash = `#/evenement/${saved.id}`;

@@ -122,11 +122,18 @@
       <label class="field"><span>Votre adresse e-mail</span><input type="email" name="email" required autocomplete="email"></label>
       <button class="btn btn-primary">Me désinscrire</button></form></section>`;
   V.unsubscribe.mount = (root) =>
-    root.querySelector('#unsub').addEventListener('submit', (e) => {
+    root.querySelector('#unsub').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const ok = Store.unsubscribe(e.target.email.value);
-      UI.toast(ok ? 'Vous êtes désinscrit·e. Vos données ont été supprimées.' : "Cette adresse n'était pas inscrite.", ok ? 'success' : 'error');
-      e.target.reset();
+      const f = e.target;
+      if (!U.isEmail(f.email.value)) return UI.toast('Adresse e-mail invalide.', 'error');
+      try {
+        const ok = await Store.unsubscribe(f.email.value);
+        if (ok === null) UI.toast('Si cette adresse était inscrite, elle a été désinscrite et supprimée.');
+        else UI.toast(ok ? 'Vous êtes désinscrit·e. Vos données ont été supprimées.' : "Cette adresse n'était pas inscrite.", ok ? 'success' : 'error');
+        f.reset();
+      } catch (err) {
+        UI.toast(WA.Remote.errorMessage(err), 'error');
+      }
     });
 
   V.notFound = () => `

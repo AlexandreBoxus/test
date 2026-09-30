@@ -477,6 +477,14 @@ select, input, textarea { font: inherit; color: var(--ink); }
 .login-head .icon { color: var(--green-700); margin: 0 auto 8px; }
 .login-head h1 { font-size: 1.7rem; color: var(--green-800); }
 
+/* ---------- Chargement & mise en place Firebase ---------- */
+.loading { display: grid; place-items: center; gap: 8px; padding: 120px 20px; color: var(--ink-3); }
+.loading .icon { width: 32px; height: 32px; color: var(--green-700); }
+.orphan { max-width: 640px; margin: 0 auto 20px; align-items: flex-start; font-weight: 400; }
+.orphan p { margin: 0 0 8px; }
+.orphan code { background: rgba(255, 255, 255, .7); padding: 1px 6px; border-radius: 5px; word-break: break-all; }
+.orphan .uid { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
 /* ==========================================================================
    Responsive
    ========================================================================== */

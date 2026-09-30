@@ -17,25 +17,82 @@
   const pendingCount = () => Store.associations('pending').length + Store.events('pending').length;
 
   /* ---------------- Connexion ---------------- */
-  const loginView = () => `
+  const shared = () => Store.mode === 'firebase';
+
+  const orphanNotice = (o) => `
+    <div class="notice notice-warn orphan">${UI.icon('ShieldCheck')}<div>
+      <p><strong>Le compte ${U.esc(o.email)} n'a pas encore les droits d'administration.</strong></p>
+      <p>Pour le premier administrateur : dans la console Firebase, ouvrez <em>Firestore Database</em>, créez la collection <code>admins</code> avec un document dont l'identifiant est :</p>
+      <p class="uid"><code id="orphan-uid">${U.esc(o.uid)}</code> <button type="button" class="btn btn-ghost btn-sm" id="copy-uid">${UI.icon('Copy')}Copier</button></p>
+      <p>et les champs <code>role</code> = <code>admin</code>, <code>email</code> = <code>${U.esc(o.email)}</code>, <code>name</code> = votre nom. Rechargez ensuite cette page.</p>
+      <p>Les administrateurs suivants s'ajoutent directement depuis l'onglet « Utilisateurs ».</p>
+      <button type="button" class="btn btn-ghost btn-sm" id="orphan-logout">${UI.icon('LogOut')}Se déconnecter</button></div></div>`;
+
+  const loginView = () => {
+    const orphan = Store.orphanAccount();
+    return `
     <section class="container login-wrap">
+      ${orphan ? orphanNotice(orphan) : ''}
       <form class="panel login" id="login-form" novalidate>
         <div class="login-head">${UI.icon('Lock', 'lg')}<h1>Espace administration</h1><p class="muted">Réservé aux agents communaux et modérateurs du portail.</p></div>
-        <label class="field"><span>Nom d'utilisateur</span><input name="username" autocomplete="username" required></label>
+        <label class="field"><span>${shared() ? 'Adresse e-mail' : "Nom d'utilisateur"}</span><input name="username" ${shared() ? 'type="email" autocomplete="email"' : 'autocomplete="username"'} required></label>
         <label class="field"><span>Mot de passe</span><input name="password" type="password" autocomplete="current-password" required></label>
         <button class="btn btn-primary btn-block">${UI.icon('KeyRound')}Se connecter</button>
-        <p class="hint">Prototype : identifiants par défaut indiqués dans le fichier README (à changer à la première connexion).</p>
+        ${
+          shared()
+            ? '<button type="button" class="btn btn-ghost btn-sm" id="forgot">Mot de passe oublié ?</button>'
+            : '<p class="hint">Mode démonstration : identifiants par défaut indiqués dans le fichier README (à changer à la première connexion).</p>'
+        }
       </form>
     </section>`;
+  };
 
   let failedAttempts = 0;
   let lockedUntil = 0;
   const mountLogin = (root) => {
-    root.querySelector('#login-form').addEventListener('submit', (e) => {
+    const copy = root.querySelector('#copy-uid');
+    copy &&
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(root.querySelector('#orphan-uid').textContent);
+          UI.toast('Identifiant copié.');
+        } catch (e) {
+          UI.toast("Copie impossible : sélectionnez l'identifiant à la main.", 'error');
+        }
+      });
+    const orphanOut = root.querySelector('#orphan-logout');
+    orphanOut &&
+      orphanOut.addEventListener('click', async () => {
+        await Store.logout();
+        WA.App.render();
+      });
+    const forgot = root.querySelector('#forgot');
+    forgot &&
+      forgot.addEventListener('click', async () => {
+        const email = root.querySelector('[name=username]').value.trim();
+        if (!U.isEmail(email)) return UI.formError(root.querySelector('#login-form'), 'Indiquez votre adresse e-mail ci-dessus, puis cliquez à nouveau sur « Mot de passe oublié ? ».');
+        try {
+          await Store.resetPassword(email);
+        } catch (err) {
+          console.warn(err);
+        }
+        UI.toast('Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d\'être envoyé.');
+      });
+    root.querySelector('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;
       if (Date.now() < lockedUntil) return UI.formError(f, `Trop de tentatives. Réessayez dans ${Math.ceil((lockedUntil - Date.now()) / 1000)} secondes.`);
-      const user = Store.login(f.username.value, f.password.value);
+      let user = null;
+      const button = f.querySelector('button.btn-primary');
+      button.disabled = true;
+      try {
+        user = await Store.login(f.username.value, f.password.value);
+      } catch (err) {
+        button.disabled = false;
+        if (err && err.code && !/credential|password|user-not-found/.test(err.code)) return UI.formError(f, WA.Remote.errorMessage(err));
+      }
+      button.disabled = false;
+      if (!user && Store.orphanAccount()) return WA.App.render();
       if (!user) {
         failedAttempts++;
         if (failedAttempts >= 5) {
@@ -61,12 +118,16 @@
       </form>`,
       { title: 'Changer le mot de passe', size: 'modal-sm' }
     );
-    m.querySelector('form').addEventListener('submit', (e) => {
+    m.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const { p1, p2 } = e.target;
       if (p1.value.length < 10) return UI.formError(e.target, 'Le mot de passe doit contenir au moins 10 caractères.');
       if (p1.value !== p2.value) return UI.formError(e.target, 'Les deux mots de passe ne correspondent pas.');
-      Store.saveUser({ ...user, password: p1.value });
+      try {
+        await Store.changePassword(p1.value);
+      } catch (err) {
+        return UI.formError(e.target, WA.Remote.errorMessage(err));
+      }
       UI.closeModal();
       UI.toast('Mot de passe modifié.');
     });
@@ -100,8 +161,8 @@
   V.admin.mount = (root, params) => {
     const user = Store.currentUser();
     if (!user) return mountLogin(root);
-    root.querySelector('[data-action="logout"]').addEventListener('click', () => {
-      Store.logout();
+    root.querySelector('[data-action="logout"]').addEventListener('click', async () => {
+      await Store.logout();
       UI.toast('Vous êtes déconnecté·e.');
       location.hash = '#/';
     });
@@ -460,7 +521,11 @@
         const b = e.target.closest('[data-unsub]');
         if (!b) return;
         if (!(await UI.confirm(`Désinscrire ${b.dataset.unsub} ?`, { confirmLabel: 'Désinscrire', danger: true }))) return;
-        Store.unsubscribe(b.dataset.unsub);
+        try {
+          await Store.unsubscribe(b.dataset.unsub);
+        } catch (err) {
+          return UI.toast(WA.Remote.errorMessage(err), 'error');
+        }
         rerender();
       });
     },
@@ -470,12 +535,12 @@
   PANELS.utilisateurs = {
     render(me) {
       return `<div class="panel">
-        <div class="panel-toolbar"><p class="muted small">Les <strong>administrateurs</strong> gèrent tout le portail ; les <strong>modérateurs</strong> valident et modifient les contenus.</p>
+        <div class="panel-toolbar"><p class="muted small">Les <strong>administrateurs</strong> gèrent tout le portail ; les <strong>modérateurs</strong> valident et modifient les contenus.${shared() ? ' Retirer un utilisateur supprime ses droits ; son compte de connexion peut ensuite être supprimé dans la console Firebase (Authentication).' : ''}</p>
           <button class="btn btn-primary btn-sm" data-user="new">${UI.icon('UserPlus')}Ajouter un utilisateur</button></div>
         <div class="table-wrap"><table class="table admin-table"><thead><tr><th>Utilisateur</th><th>Nom</th><th>Rôle</th><th>Dernière connexion</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
         ${Store.users()
           .map(
-            (u) => `<tr><td data-label="Utilisateur"><strong>${U.esc(u.username)}</strong>${u.id === me.id ? ' <span class="tag tag-soft">vous</span>' : ''}</td><td data-label="Nom">${U.esc(u.name)}<br><small class="muted">${U.esc(u.email)}</small></td>
+            (u) => `<tr><td data-label="Utilisateur"><strong>${U.esc(u.username || u.email)}</strong>${u.id === me.id ? ' <span class="tag tag-soft">vous</span>' : ''}</td><td data-label="Nom">${U.esc(u.name)}<br><small class="muted">${U.esc(u.email)}</small></td>
           <td data-label="Rôle">${u.role === 'admin' ? 'Administrateur' : 'Modérateur'}</td><td data-label="Dernière connexion">${u.lastLogin ? U.fmtDateTime(u.lastLogin) : '—'}</td>
           <td class="row-actions"><button class="icon-btn" data-user="${u.id}" aria-label="Modifier">${UI.icon('Pencil')}</button>${u.id !== me.id ? `<button class="icon-btn danger" data-delete="${u.id}" aria-label="Supprimer">${UI.icon('Trash2')}</button>` : ''}</td></tr>`
           )
@@ -488,39 +553,54 @@
         if (del) {
           if (!(await UI.confirm('Supprimer cet utilisateur ?', { confirmLabel: 'Supprimer', danger: true }))) return;
           try {
-            Store.deleteUser(del.dataset.delete);
+            await Store.deleteUser(del.dataset.delete);
             rerender();
           } catch (err) {
-            UI.toast(err.message, 'error');
+            UI.toast(err.code ? WA.Remote.errorMessage(err) : err.message, 'error');
           }
         }
         if (!edit) return;
         const u = edit.dataset.user === 'new' ? null : Store.user(edit.dataset.user);
+        const sh = shared();
+        const passwordField = sh && u
+          ? `<button type="button" class="btn btn-ghost btn-sm" id="send-reset">${UI.icon('Mail')}Envoyer un lien de réinitialisation du mot de passe</button>`
+          : `<label class="field"><span>${u ? 'Nouveau mot de passe (laisser vide pour conserver)' : 'Mot de passe * (10 caractères min.)'}</span><input type="password" name="password" autocomplete="new-password"></label>`;
         const m = UI.modal(
           `<form class="form" novalidate>
-            <label class="field"><span>Nom d'utilisateur *</span><input name="username" value="${U.esc(u ? u.username : '')}" ${u ? 'readonly' : ''} required autocomplete="off"></label>
+            <label class="field"><span>${sh ? 'Adresse e-mail de connexion *' : "Nom d'utilisateur *"}</span><input name="username" ${sh ? 'type="email"' : ''} value="${U.esc(u ? u.username || u.email : '')}" ${u ? 'readonly' : ''} required autocomplete="off"></label>
             <label class="field"><span>Nom complet</span><input name="name" value="${U.esc(u ? u.name : '')}"></label>
-            <label class="field"><span>E-mail</span><input type="email" name="email" value="${U.esc(u ? u.email : '')}"></label>
+            ${sh ? '' : `<label class="field"><span>E-mail</span><input type="email" name="email" value="${U.esc(u ? u.email : '')}"></label>`}
             <label class="field"><span>Rôle</span><select name="role"><option value="moderateur">Modérateur</option><option value="admin" ${u && u.role === 'admin' ? 'selected' : ''}>Administrateur</option></select></label>
-            <label class="field"><span>${u ? 'Nouveau mot de passe (laisser vide pour conserver)' : 'Mot de passe * (10 caractères min.)'}</span><input type="password" name="password" autocomplete="new-password"></label>
+            ${passwordField}
             <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
           </form>`,
-          { title: u ? `Modifier ${u.username}` : 'Nouvel utilisateur', size: 'modal-sm' }
+          { title: u ? `Modifier ${u.username || u.email}` : 'Nouvel utilisateur', size: 'modal-sm' }
         );
-        m.querySelector('form').addEventListener('submit', (ev) => {
+        const sendReset = m.querySelector('#send-reset');
+        sendReset &&
+          sendReset.addEventListener('click', async () => {
+            try {
+              await Store.resetPassword(u.username || u.email);
+              UI.toast(`Lien de réinitialisation envoyé à ${u.username || u.email}.`);
+            } catch (err) {
+              UI.toast(WA.Remote.errorMessage(err), 'error');
+            }
+          });
+        m.querySelector('form').addEventListener('submit', async (ev) => {
           ev.preventDefault();
-          const d = Object.fromEntries(new FormData(ev.target));
-          if (!u && !/^[a-z0-9._-]{3,}$/i.test(d.username)) return UI.formError(ev.target, "Nom d'utilisateur invalide (3 caractères min., lettres, chiffres, . _ -).");
+          const d = { password: '', email: '', ...Object.fromEntries(new FormData(ev.target)) };
+          if (!u && sh && !U.isEmail(d.username)) return UI.formError(ev.target, 'Adresse e-mail de connexion invalide.');
+          if (!u && !sh && !/^[a-z0-9._-]{3,}$/i.test(d.username)) return UI.formError(ev.target, "Nom d'utilisateur invalide (3 caractères min., lettres, chiffres, . _ -).");
           if ((!u || d.password) && d.password.length < 10) return UI.formError(ev.target, 'Le mot de passe doit contenir au moins 10 caractères.');
           if (d.email && !U.isEmail(d.email)) return UI.formError(ev.target, 'Adresse e-mail invalide.');
           if (u && u.role === 'admin' && d.role !== 'admin' && Store.users().filter((x) => x.role === 'admin').length <= 1) return UI.formError(ev.target, 'Il doit rester au moins un administrateur.');
           try {
-            Store.saveUser({ id: u && u.id, ...d });
+            await Store.saveUser({ id: u && u.id, ...d });
             UI.closeModal();
             UI.toast('Utilisateur enregistré.');
             rerender();
           } catch (err) {
-            UI.formError(ev.target, err.message);
+            UI.formError(ev.target, err.code ? WA.Remote.errorMessage(err) : err.message);
           }
         });
       });
@@ -541,8 +621,13 @@
           <li>${UI.icon('Check')}Droit d'accès et d'effacement : recherche et suppression ci-dessous.</li></ul>
           <form id="gdpr-search" class="form"><label class="field"><span>Rechercher les données d'une personne (e-mail)</span><input type="email" name="email" required></label><button class="btn btn-soft btn-sm">${UI.icon('Search')}Rechercher</button></form>
           <div id="gdpr-result"></div></section>
-        <section class="panel span-2 panel-danger"><h2>${UI.icon('RotateCcw')}Réinitialiser le prototype</h2><p class="small">Remet les données de démonstration issues des fiches individuelles (les ajouts et modifications seront perdus).</p>
-          <button class="btn btn-danger btn-sm" id="data-reset">${UI.icon('RotateCcw')}Réinitialiser</button></section>
+        ${
+          shared()
+            ? `<section class="panel span-2"><h2>${UI.icon('Upload')}Données de départ</h2><p class="small">Charge dans la base partagée les ${WA.buildSeed().associations.length} associations issues des fiches individuelles et les événements d'exemple. Les fiches existantes portant le même identifiant sont remplacées.</p>
+          <button class="btn btn-primary btn-sm" id="data-seed">${UI.icon('Upload')}Importer les données de départ</button></section>`
+            : `<section class="panel span-2 panel-danger"><h2>${UI.icon('RotateCcw')}Réinitialiser le prototype</h2><p class="small">Remet les données de démonstration issues des fiches individuelles (les ajouts et modifications seront perdus).</p>
+          <button class="btn btn-danger btn-sm" id="data-reset">${UI.icon('RotateCcw')}Réinitialiser</button></section>`
+        }
       </div>`;
     },
     mount(root) {
@@ -551,14 +636,29 @@
         const file = e.target.files[0];
         if (!file) return;
         try {
-          Store.importJson(await file.text());
+          await Store.importJson(await file.text());
           UI.toast('Données importées.');
           rerender();
         } catch (err) {
           UI.toast(`Import impossible : ${err.message}`, 'error');
         }
       });
-      root.querySelector('#data-reset').addEventListener('click', async () => {
+      const seedBtn = root.querySelector('#data-seed');
+      seedBtn &&
+        seedBtn.addEventListener('click', async () => {
+          if (!(await UI.confirm('Importer les associations et événements de départ dans la base partagée ?', { confirmLabel: 'Importer' }))) return;
+          seedBtn.disabled = true;
+          try {
+            await Store.importSeed();
+            UI.toast('Données de départ importées.');
+            rerender();
+          } catch (err) {
+            seedBtn.disabled = false;
+            UI.toast(WA.Remote.errorMessage(err), 'error');
+          }
+        });
+      const resetBtn = root.querySelector('#data-reset');
+      resetBtn && resetBtn.addEventListener('click', async () => {
         if (!(await UI.confirm('Réinitialiser toutes les données du prototype ?', { confirmLabel: 'Réinitialiser', danger: true }))) return;
         Store.reset();
         UI.toast('Données réinitialisées. Reconnectez-vous.');
@@ -579,7 +679,12 @@
           erase.addEventListener('click', async () => {
             if (!(await UI.confirm(`Effacer les messages et l'abonnement de ${email} ?`, { confirmLabel: 'Effacer', danger: true }))) return;
             msgs.forEach((m) => Store.deleteMessage(m.id));
-            Store.unsubscribe(email);
+            try {
+              await Store.unsubscribe(email);
+              await Store.flush();
+            } catch (err) {
+              return UI.toast(WA.Remote.errorMessage(err), 'error');
+            }
             UI.toast('Données effacées.');
             out.innerHTML = '';
           });

@@ -125,7 +125,7 @@
       </form>`,
       { title: subject || 'Contacter' }
     );
-    m.querySelector('form').addEventListener('submit', (e) => {
+    m.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;
       const d = Object.fromEntries(new FormData(f));
@@ -144,6 +144,11 @@
         email: d.email.trim(),
         message: d.message.trim(),
       });
+      try {
+        await WA.Store.flush();
+      } catch (err) {
+        return UI.formError(f, `L'envoi a échoué. ${WA.Remote.errorMessage(err)}`);
+      }
       UI.closeModal();
       UI.toast('Merci ! Votre message a bien été transmis.');
     });

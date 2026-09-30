@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// Règles de sécurité du Réseau Associatif de Walhain.
+// - Le public lit uniquement les contenus publiés et peut PROPOSER (statut « pending »).
+// - Les membres de la collection « admins » (administrateurs et modérateurs) valident et gèrent.
+// - Seuls les administrateurs (role == 'admin') gèrent les comptes.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isStaff() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isAdmin() { return isStaff() && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin'; }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function optStr(d, f, max) { return !(f in d) || str(d[f], max); }
+
+    function validAssociationProposal(d) {
+      return d.status == 'pending'
+        && str(d.name, 120) && d.name.size() > 0
+        && str(d.shortDescription, 200)
+        && str(d.description, 6000)
+        && optStr(d, 'history', 6000)
+        && optStr(d, 'photo', 900000)
+        && d.themes is list && d.themes.size() > 0 && d.themes.size() <= 14
+        && d.villages is list && d.villages.size() > 0 && d.villages.size() <= 5;
+    }
+
+    function validEventProposal(d) {
+      return d.status == 'pending'
+        && str(d.title, 140) && d.title.size() > 0
+        && str(d.associationId, 120)
+        && str(d.date, 10)
+        && str(d.contactEmail, 200)
+        && optStr(d, 'description', 6000)
+        && optStr(d, 'image', 900000);
+    }
+
+    match /associations/{id} {
+      allow read: if resource.data.status == 'published' || isStaff();
+      allow create: if isStaff() || validAssociationProposal(request.resource.data);
+      allow update, delete: if isStaff();
+    }
+
+    match /events/{id} {
+      allow read: if resource.data.status == 'published' || isStaff();
+      allow create: if isStaff() || validEventProposal(request.resource.data);
+      allow update, delete: if isStaff();
+    }
+
+    // Formulaires « Contacter » : écriture publique, lecture réservée à l'administration.
+    match /messages/{id} {
+      allow create: if request.resource.data.status == 'transmis'
+        && str(request.resource.data.firstName, 100)
+        && str(request.resource.data.lastName, 100)
+        && str(request.resource.data.email, 200)
+        && str(request.resource.data.message, 5000);
+      allow read, delete: if isStaff();
+    }
+
+    // Newsletter : inscription publique ; l'identifiant est une empreinte de l'e-mail,
+    // ce qui permet la désinscription sans rendre la liste lisible.
+    match /subscribers/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['email', 'villages', 'createdAt', 'consent'])
+        && str(request.resource.data.email, 200);
+      allow delete: if true;
+      allow read: if isStaff();
+    }
+
+    // Statistiques anonymes : compteurs uniquement.
+    match /stats/{doc} {
+      allow read: if isStaff();
+      allow create, update: if doc == 'global'
+        && request.resource.data.keys().hasOnly(['pageViews', 'assocViews', 'eventViews', 'searches', 'daily', 'shares', 'exports']);
+    }
+
+    match /newsletters/{id} { allow read, write: if isStaff(); }
+    match /audit/{id} { allow read, write: if isStaff(); }
+    match /config/{doc} { allow read, write: if isStaff(); }
+
+    // Comptes d'administration (identifiant du document = UID Firebase Authentication).
+    match /admins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow write: if isAdmin();
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']);
+    }
+  }
+}

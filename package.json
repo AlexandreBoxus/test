@@ -5,7 +5,8 @@
   "description": "Prototype du portail des associations de la Commune de Walhain (répertoire, agenda, carte, administration).",
   "scripts": {
     "start": "npx --yes http-server . -p 8080 -c-1",
-    "test": "node --test tests/utils.test.js"
+    "test": "node --test tests/utils.test.js",
+    "emulators": "npx --yes firebase-tools emulators:start --only auth,firestore --project demo-walhain"
   },
   "license": "UNLICENSED"
 }

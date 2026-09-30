@@ -89,14 +89,18 @@
       e.currentTarget.setAttribute('aria-expanded', String(open));
     });
 
-    document.getElementById('newsletter-form').addEventListener('submit', (e) => {
+    document.getElementById('newsletter-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;
       if (!U.isEmail(f.email.value)) return UI.toast('Adresse e-mail invalide.', 'error');
       if (!f.consent.checked) return UI.toast('Merci de cocher la case de consentement.', 'error');
-      const ok = Store.subscribe(f.email.value);
-      UI.toast(ok ? 'Inscription confirmée ! Vous recevrez les prochains événements.' : 'Cette adresse est déjà inscrite.', ok ? 'success' : 'error');
-      f.reset();
+      try {
+        const ok = await Store.subscribe(f.email.value);
+        UI.toast(ok ? 'Inscription confirmée ! Vous recevrez les prochains événements.' : 'Cette adresse est déjà inscrite.', ok ? 'success' : 'error');
+        f.reset();
+      } catch (err) {
+        UI.toast(WA.Remote.errorMessage(err), 'error');
+      }
     });
 
     // Bandeau d'information RGPD (pas de traceur : simple information, mémorisée localement).
@@ -118,10 +122,28 @@
     });
   };
 
-  App.start = () => {
-    Store.init();
+  const isEditing = () => {
+    if (document.getElementById('modal')) return true;
+    if (/nouvelle|nouveau|modifier/.test(parseHash().path)) return true;
+    const el = document.activeElement;
+    return !!(el && el.closest('#app') && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  };
+
+  App.start = async () => {
+    const root = document.getElementById('app');
+    root.innerHTML = `<div class="loading" role="status">${UI.icon('Hourglass')}<p>Chargement du portail…</p></div>`;
     initShell();
-    WA.Newsletter && WA.Newsletter.autoSend();
+    try {
+      await Store.init();
+    } catch (err) {
+      console.error(err);
+      root.innerHTML = `<section class="container narrow thanks"><div class="panel center">${UI.icon('CircleAlert', 'xl')}<h1>Connexion à la base de données impossible</h1>
+        <p>Vérifiez votre connexion Internet puis rechargez la page. Si le problème persiste, contactez l'administration communale.</p></div></section>`;
+      return;
+    }
+    if (Store.mode === 'local') WA.Newsletter && WA.Newsletter.autoSend();
+    // Base partagée : l'affichage suit les changements faits par les autres utilisateurs.
+    if (Store.mode === 'firebase') Store.onChange(U.debounce(() => !isEditing() && App.render(), 200));
     window.addEventListener('hashchange', App.render);
     App.render();
   };

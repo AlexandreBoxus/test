@@ -219,7 +219,7 @@
   U.hashPassword = (password, salt) => U.sha256(`${salt}::${password}`);
 
   /* ---------- Images : redimensionnement avant stockage ---------- */
-  U.resizeImage = (file, max = 1000, quality = 0.8) =>
+  U.resizeImage = (file, max = 900, quality = 0.78) =>
     new Promise((resolve, reject) => {
       if (!file || !/^image\//.test(file.type)) return reject(new Error('Format non pris en charge'));
       const reader = new FileReader();
