@@ -1,0 +1,22 @@
+{
+  "name": "Réseau Associatif de Walhain",
+  "short_name": "Assos Walhain",
+  "description": "Les associations et l'agenda des activités des cinq villages de Walhain.",
+  "lang": "fr",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fbf8f2",
+  "theme_color": "#2f6b35",
+  "categories": ["lifestyle", "social", "events"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Agenda", "url": "./#/agenda?view=list", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Associations", "url": "./#/associations", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

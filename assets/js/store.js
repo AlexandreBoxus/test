@@ -70,6 +70,7 @@
       persist();
     }
     Store.purgeExpiredMessages();
+    WA.applySite(Store.site());
     return state;
   };
 
@@ -166,7 +167,7 @@
     if (a.revisionOf) {
       const target = Store.association(a.revisionOf);
       if (target) {
-        const { id: _i, revisionOf: _r, createdAt: _c, status: _s, ...changes } = a;
+        const { id: _i, revisionOf: _r, createdAt: _c, status: _s, submitter: _sub, review: _rev, ...changes } = a;
         Object.assign(target, changes, { updatedAt: Date.now() });
         put('associations', target);
       }
@@ -177,16 +178,34 @@
     }
     a.status = 'published';
     a.updatedAt = Date.now();
+    delete a.submitter; // coordonnées du demandeur : jamais publiées
+    delete a.review;
     put('associations', a);
     commit('association.approve', a.name);
   };
 
-  Store.rejectAssociation = (id) => {
+  const review = (st, note) => ({ state: st, note: note || '', at: Date.now(), by: (Store.currentUser() || {}).username || '' });
+  const decisionLabel = (name, note) => (note ? `${name} — ${note}` : name);
+
+  /** Marque une demande « précision demandée » (elle reste en attente). */
+  Store.requestInfo = (kind, id, note) => {
+    const col = kind === 'association' ? 'associations' : 'events';
+    const x = kind === 'association' ? Store.association(id) : Store.event(id);
+    if (!x) return;
+    x.review = review('info', note);
+    put(col, x);
+    commit(`${kind === 'association' ? 'association' : 'event'}.info`, decisionLabel(x.name || x.title, note));
+  };
+
+  /** Refus motivé : la demande est conservée (statut « rejected ») pour l'historique. */
+  Store.rejectAssociation = (id, reason = '') => {
     const a = Store.association(id);
     if (!a) return;
-    state.associations = state.associations.filter((x) => x.id !== id);
-    del('associations', id);
-    commit('association.reject', a.name);
+    a.status = 'rejected';
+    a.review = review('rejected', reason);
+    a.updatedAt = Date.now();
+    put('associations', a);
+    commit('association.reject', decisionLabel(a.name, reason));
   };
 
   Store.deleteAssociation = (id) => {
@@ -220,13 +239,15 @@
     return record;
   };
 
-  Store.setEventStatus = (id, status) => {
+  Store.setEventStatus = (id, status, reason = '') => {
     const e = Store.event(id);
     if (!e) return;
     e.status = status;
     e.updatedAt = Date.now();
+    if (status === 'rejected') e.review = review('rejected', reason);
+    else delete e.review;
     put('events', e);
-    commit(`event.${status === 'published' ? 'approve' : status}`, e.title);
+    commit(`event.${status === 'published' ? 'approve' : status}`, decisionLabel(e.title, reason));
   };
 
   Store.deleteEvent = (id) => {
@@ -311,6 +332,55 @@
     put('newsletters', record);
     remote() && sync(remote().merge('config', 'settings', { lastNewsletterAt: state.settings.lastNewsletterAt }));
     commit('newsletter.send', nl.subject);
+  };
+
+  /* ---------------- Contenus du site (modifiables dans l'admin) ---------------- */
+  Store.site = () => ({ ...WA.siteDefaults(), ...(state.site || {}) });
+  Store.saveSite = async (site) => {
+    state.site = site;
+    if (remote()) await remote().put('config', { ...site, id: 'site' });
+    WA.applySite(Store.site());
+    commit('site.update', 'Contenus du site');
+  };
+  /** Nombre de fiches et d'événements utilisant chaque village / thématique / public. */
+  Store.usage = () => {
+    const count = { villages: {}, themes: {}, audiences: {} };
+    const inc = (map, k) => k && (map[k] = (map[k] || 0) + 1);
+    state.associations.forEach((a) => {
+      (a.villages || []).forEach((v) => inc(count.villages, v));
+      (a.themes || []).forEach((t) => inc(count.themes, t));
+      (a.audiences || []).forEach((x) => inc(count.audiences, x));
+    });
+    state.events.forEach((e) => {
+      inc(count.villages, e.village);
+      inc(count.themes, e.category);
+    });
+    return count;
+  };
+  /** Renomme un village dans toutes les fiches et tous les événements. */
+  Store.renameVillage = (from, to) => {
+    let n = 0;
+    state.associations.forEach((a) => {
+      if ((a.villages || []).includes(from)) {
+        a.villages = a.villages.map((v) => (v === from ? to : v));
+        put('associations', a);
+        n++;
+      }
+    });
+    state.events.forEach((e) => {
+      if (e.village === from) {
+        e.village = to;
+        put('events', e);
+        n++;
+      }
+    });
+    if (n) commit('village.rename', `${from} → ${to} (${n} fiche(s))`);
+    return n;
+  };
+  /** Appelé par le connecteur Firebase quand les contenus changent. */
+  Store.setSiteFromServer = (site) => {
+    state.site = site;
+    WA.applySite(Store.site());
   };
 
   /* ---------------- Paramètres ---------------- */

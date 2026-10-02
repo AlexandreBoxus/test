@@ -4,6 +4,14 @@ Prototype fonctionnel du portail numérique des associations de la **Commune de 
 
 Application web responsive, entièrement en français, sans étape de compilation : HTML, CSS et JavaScript natifs.
 
+## Documentation
+
+| Pour qui | Document |
+|---|---|
+| Agents communaux, modérateurs | [Guide de l'administrateur](docs/GUIDE-ADMINISTRATEUR.md) |
+| Mise en service de la base partagée | [Firebase pas à pas](docs/FIREBASE.md) |
+| Service informatique | [Hébergement (serveur communal, Firebase Hosting, GitHub Pages)](docs/HEBERGEMENT.md) |
+
 ## Lancer l'application
 
 ```bash
@@ -54,6 +62,18 @@ npm test               # tests unitaires : récurrences, hachage, échappement
 - **Statistiques d'usage** anonymes : visites quotidiennes, fiches les plus consultées, répartition par thématique et par village, recherches fréquentes, partages et exports. S'y ajoute un journal d'activité.
 - **Données & RGPD** : sauvegarde et restauration JSON, recherche et effacement des données d'une personne, réinitialisation.
 
+### Autonomie de la Commune
+- **Circuit des demandes** :
+  - les coordonnées du demandeur sont visibles par l'admin, mais jamais publiées ;
+  - boutons **Valider**, **Demander une précision** et **Refuser** (avec motif), qui préparent chacun l'e-mail au demandeur ;
+  - historique des décisions ;
+  - alertes de nouvelle demande sur l'ordinateur de l'agent.
+- **Contenus du site modifiables dans l'admin**, sans code :
+  - nom, logo, couleurs et textes de la page d'accueil ;
+  - villages (le renommage s'applique à toutes les fiches) ;
+  - thématiques (pictogramme et couleur) et publics cibles.
+- **Application installable** (PWA) sur Android, iPhone et ordinateur : icône sur l'écran d'accueil, plein écran, consultation hors connexion.
+
 ### Compléments
 - **Carte interactive** (Leaflet + OpenStreetMap) avec les associations, filtrables, et les villages.
 - **Conformité RGPD** : bandeau d'information (aucun traceur), politique de confidentialité, cases de consentement, désinscription en un clic et purge automatique des messages après 12 mois.
@@ -72,6 +92,9 @@ Les **24 associations** proviennent du document « Retranscription des fiches in
 
 ```
 index.html              coque de l'application (en-tête, pied de page, scripts)
+manifest.webmanifest    application installable (nom, icônes, couleurs)
+sw.js                   service worker (hors connexion)
+assets/icons/           icônes de l'application
 assets/css/styles.css   design system (couleurs vert / bleu / beige), responsive
 assets/js/
   utils.js              dates, récurrences, SHA-256, images, CSV
@@ -85,6 +108,7 @@ assets/js/
   forms.js              formulaires association / événement
   map.js                carte interactive
   admin.js              espace administration
+  admin-content.js      onglet « Contenus du site »
   pages.js              accueil, confidentialité, pages annexes
   app.js                routeur (#/…) et initialisation
   firebase-config.js    configuration Firebase (null = mode démonstration)

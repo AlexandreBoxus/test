@@ -219,7 +219,7 @@
   U.hashPassword = (password, salt) => U.sha256(`${salt}::${password}`);
 
   /* ---------- Images : redimensionnement avant stockage ---------- */
-  U.resizeImage = (file, max = 900, quality = 0.78) =>
+  U.resizeImage = (file, max = 900, quality = 0.78, type = 'image/jpeg') =>
     new Promise((resolve, reject) => {
       if (!file || !/^image\//.test(file.type)) return reject(new Error('Format non pris en charge'));
       const reader = new FileReader();
@@ -233,7 +233,7 @@
           canvas.width = Math.round(img.width * ratio);
           canvas.height = Math.round(img.height * ratio);
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          resolve(canvas.toDataURL(type, quality));
         };
         img.src = reader.result;
       };

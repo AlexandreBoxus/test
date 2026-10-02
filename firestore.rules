@@ -74,7 +74,11 @@ service cloud.firestore {
 
     match /newsletters/{id} { allow read, write: if isStaff(); }
     match /audit/{id} { allow read, write: if isStaff(); }
-    match /config/{doc} { allow read, write: if isStaff(); }
+    // « site » = textes, logo, couleurs, villages, thématiques : lisible par tous.
+    match /config/{doc} {
+      allow read: if doc == 'site' || isStaff();
+      allow write: if isStaff();
+    }
 
     // Comptes d'administration (identifiant du document = UID Firebase Authentication).
     match /admins/{uid} {

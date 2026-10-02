@@ -10,6 +10,7 @@
     { id: 'evenements', label: 'Événements', icon: 'CalendarDays' },
     { id: 'messages', label: 'Messages', icon: 'Inbox' },
     { id: 'newsletter', label: 'Newsletter', icon: 'Newspaper' },
+    { id: 'contenus', label: 'Contenus du site', icon: 'Palette' },
     { id: 'utilisateurs', label: 'Utilisateurs', icon: 'UsersRound', adminOnly: true },
     { id: 'donnees', label: 'Données & RGPD', icon: 'Settings', adminOnly: true },
   ];
@@ -153,7 +154,7 @@
             .map((t) => `<a href="#/admin/${t.id}" class="${t.id === tab.id ? 'active' : ''}" ${t.id === tab.id ? 'aria-current="page"' : ''}>${UI.icon(t.icon)}<span>${t.label}</span>${t.id === 'validation' && pending ? `<b class="count">${pending}</b>` : ''}</a>`)
             .join('')}
         </nav>
-        <div class="admin-content" data-tab="${tab.id}">${PANELS[tab.id].render(user)}</div>
+        <div class="admin-content" data-tab="${tab.id}">${(PANELS[tab.id] || WA.AdminPanels[tab.id]).render(user)}</div>
       </div>
     </section>`;
   };
@@ -168,7 +169,7 @@
     });
     root.querySelector('[data-action="password"]').addEventListener('click', () => changePassword(user));
     const content = root.querySelector('.admin-content');
-    const panel = PANELS[content.dataset.tab];
+    const panel = PANELS[content.dataset.tab] || WA.AdminPanels[content.dataset.tab];
     panel.mount && panel.mount(content, user);
   };
 
@@ -250,62 +251,145 @@
   };
 
   /* ---------------- Validation ---------------- */
+  const DECISIONS = {
+    'association.approve': ['Fiche publiée', 'tag-free'],
+    'association.revision.approve': ['Modification acceptée', 'tag-free'],
+    'association.reject': ['Fiche refusée', 'tag-paid'],
+    'association.info': ['Précision demandée', 'tag-warn'],
+    'event.approve': ['Événement publié', 'tag-free'],
+    'event.rejected': ['Événement refusé', 'tag-paid'],
+    'event.info': ['Précision demandée', 'tag-warn'],
+  };
+
+  /** Ouvre la messagerie de l'agent avec un message pré-rempli. */
+  const openMail = (to, subject, body) => {
+    const a = document.createElement('a');
+    a.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const requestItem = (kind, x) => {
+    const isA = kind === 'association';
+    const contact = isA ? x.submitter || { name: x.contactName, email: x.email } : { name: x.contactName, email: x.contactEmail };
+    const review = x.review && x.review.state === 'info' ? `<p class="review-note">${UI.icon('MessageSquare')}Précision demandée le ${U.fmtDateTime(x.review.at)}${x.review.note ? ` : « ${U.esc(x.review.note)} »` : ''}</p>` : '';
+    const title = isA ? x.name : x.title;
+    const detail = isA
+      ? `<p class="small">${U.esc(x.shortDescription)}</p>${diffLine(x)}<p class="small muted">${U.esc(x.villages.join(', '))}</p>`
+      : `<p class="small">${U.esc((Store.association(x.associationId) || {}).name || '')} · ${U.fmtDate(x.date)}${x.startTime ? ` · ${U.fmtTime(x.startTime)}` : ''} · ${U.esc(x.village)}</p><p class="small muted">${U.esc(U.recurrenceLabel(x))}</p>`;
+    return `<li data-kind="${kind}" data-id="${x.id}">
+      <div class="queue-main">${UI.themeIcon(isA ? x.themes[0] : x.category)}<div>
+        <strong>${U.esc(title)}</strong>${detail}
+        <p class="small requester">${UI.icon('User')}Demandé par ${U.esc(contact.name || '—')}${contact.email ? ` · <a href="mailto:${U.esc(contact.email)}">${U.esc(contact.email)}</a>` : ' · <em>pas d\'e-mail</em>'} · le ${U.fmtDateTime(x.createdAt)}</p>
+        ${review}
+      </div></div>
+      <div class="queue-actions">
+        <a class="btn btn-ghost btn-sm" href="#/${isA ? 'associations' : 'evenement'}/${x.id}">${UI.icon('Eye')}Aperçu</a>
+        <button class="btn btn-primary btn-sm" data-act="approve">${UI.icon('Check')}Valider</button>
+        <button class="btn btn-soft btn-sm" data-act="info">${UI.icon('MessageSquare')}Demander une précision</button>
+        <button class="btn btn-danger-ghost btn-sm" data-act="reject">${UI.icon('X')}Refuser</button>
+      </div></li>`;
+  };
+
+  function diffLine(a) {
+    if (!a.revisionOf) return '<span class="tag tag-soft">Nouvelle fiche</span>';
+    const orig = Store.association(a.revisionOf);
+    const fields = ['name', 'shortDescription', 'description', 'history', 'address', 'contactName', 'email', 'phone', 'website', 'photo', 'partners', 'needs'];
+    const changed = orig ? fields.filter((f) => (orig[f] || '') !== (a[f] || '')) : [];
+    ['themes', 'villages', 'audiences', 'activities', 'socials', 'keywords', 'coords'].forEach((f) => orig && JSON.stringify(orig[f]) !== JSON.stringify(a[f]) && changed.push(f));
+    return `<span class="tag tag-soft">Modification</span> <small class="muted">Champs modifiés : ${changed.length ? changed.join(', ') : 'aucun'}</small>`;
+  }
+
   PANELS.validation = {
     render() {
       const assocs = Store.associations('pending');
       const events = Store.events('pending');
-      const diffLine = (a) => {
-        if (!a.revisionOf) return '<span class="tag tag-soft">Nouvelle fiche</span>';
-        const orig = Store.association(a.revisionOf);
-        const fields = ['name', 'shortDescription', 'description', 'history', 'address', 'contactName', 'email', 'phone', 'website', 'photo', 'partners', 'needs'];
-        const changed = orig ? fields.filter((f) => (orig[f] || '') !== (a[f] || '')) : [];
-        ['themes', 'villages', 'audiences', 'activities', 'socials', 'keywords', 'coords'].forEach((f) => orig && JSON.stringify(orig[f]) !== JSON.stringify(a[f]) && changed.push(f));
-        return `<span class="tag tag-soft">Modification</span> <small class="muted">Champs modifiés : ${changed.length ? changed.join(', ') : 'aucun'}</small>`;
-      };
+      const history = Store.audit().filter((l) => DECISIONS[l.action]).slice(0, 15);
+      const notif = 'Notification' in window ? Notification.permission : 'unsupported';
       return `
-        <section class="panel"><h2>${UI.icon('Users')}Associations à valider <span class="count">${assocs.length}</span></h2>
-        ${
-          assocs.length
-            ? `<ul class="queue">${assocs
-                .map(
-                  (a) => `<li><div class="queue-main">${UI.themeIcon(a.themes[0])}<div><strong>${U.esc(a.name)}</strong><p class="small">${U.esc(a.shortDescription)}</p>${diffLine(a)}<p class="small muted">Soumis le ${U.fmtDateTime(a.createdAt)} · ${U.esc(a.villages.join(', '))}</p></div></div>
-                <div class="queue-actions"><a class="btn btn-ghost btn-sm" href="#/associations/${a.id}">${UI.icon('Eye')}Aperçu</a><button class="btn btn-primary btn-sm" data-approve-assoc="${a.id}">${UI.icon('Check')}Valider</button><button class="btn btn-danger-ghost btn-sm" data-reject-assoc="${a.id}">${UI.icon('X')}Refuser</button></div></li>`
-                )
-                .join('')}</ul>`
-            : `<p class="muted">${UI.icon('CircleCheck')} Aucune fiche en attente.</p>`
-        }</section>
-        <section class="panel"><h2>${UI.icon('CalendarDays')}Événements à valider <span class="count">${events.length}</span></h2>
-        ${
-          events.length
-            ? `<ul class="queue">${events
-                .map(
-                  (e) => `<li><div class="queue-main">${UI.themeIcon(e.category)}<div><strong>${U.esc(e.title)}</strong><p class="small">${U.esc((Store.association(e.associationId) || {}).name || '')} · ${U.fmtDate(e.date)} ${e.startTime ? `· ${U.fmtTime(e.startTime)}` : ''} · ${U.esc(e.village)}</p><p class="small muted">${U.esc(U.recurrenceLabel(e))} · Contact : ${U.esc(e.contactName)} ${U.esc(e.contactEmail)}</p></div></div>
-                <div class="queue-actions"><a class="btn btn-ghost btn-sm" href="#/evenement/${e.id}">${UI.icon('Eye')}Aperçu</a><button class="btn btn-primary btn-sm" data-approve-event="${e.id}">${UI.icon('Check')}Valider</button><button class="btn btn-danger-ghost btn-sm" data-reject-event="${e.id}">${UI.icon('X')}Refuser</button></div></li>`
-                )
-                .join('')}</ul>`
-            : `<p class="muted">${UI.icon('CircleCheck')} Aucun événement en attente.</p>`
-        }</section>`;
+        <div class="validation-intro panel">
+          <p>${pendingCount() ? `<strong>${pendingCount()} demande${pendingCount() > 1 ? 's' : ''}</strong> en attente de décision.` : `${UI.icon('CircleCheck')} Tout est à jour : aucune demande en attente.`}</p>
+          ${notif === 'default' ? `<button class="btn btn-soft btn-sm" id="enable-alerts">${UI.icon('Bell')}Recevoir une alerte sur cet ordinateur à chaque nouvelle demande</button>` : ''}
+          ${notif === 'granted' ? `<span class="tag tag-free">${UI.icon('Bell')}Alertes activées sur cet ordinateur</span>` : ''}
+        </div>
+        <section class="panel"><h2>${UI.icon('Users')}Associations ${assocs.length ? `<span class="count">${assocs.length}</span>` : ''}</h2>
+          ${assocs.length ? `<ul class="queue">${assocs.map((a) => requestItem('association', a)).join('')}</ul>` : `<p class="muted">Aucune fiche en attente.</p>`}</section>
+        <section class="panel"><h2>${UI.icon('CalendarDays')}Événements ${events.length ? `<span class="count">${events.length}</span>` : ''}</h2>
+          ${events.length ? `<ul class="queue">${events.map((e) => requestItem('event', e)).join('')}</ul>` : `<p class="muted">Aucun événement en attente.</p>`}</section>
+        <section class="panel"><h2>${UI.icon('Hourglass')}Décisions récentes</h2>
+          ${
+            history.length
+              ? `<ul class="decisions">${history
+                  .map((l) => `<li><span class="tag ${DECISIONS[l.action][1]}">${DECISIONS[l.action][0]}</span><span>${U.esc(l.label)}</span><small>${U.fmtDateTime(l.at)} · ${U.esc(l.user)}</small></li>`)
+                  .join('')}</ul>`
+              : '<p class="muted small">Aucune décision pour le moment.</p>'
+          }</section>`;
     },
     mount(root) {
+      const alerts = root.querySelector('#enable-alerts');
+      alerts &&
+        alerts.addEventListener('click', async () => {
+          await Notification.requestPermission();
+          rerender();
+        });
       root.addEventListener('click', async (e) => {
-        const b = e.target.closest('button');
+        const b = e.target.closest('[data-act]');
         if (!b) return;
-        if (b.dataset.approveAssoc) {
-          Store.approveAssociation(b.dataset.approveAssoc);
-          UI.toast('Fiche validée et publiée.');
-        } else if (b.dataset.rejectAssoc) {
-          if (!(await UI.confirm('Refuser et supprimer cette proposition ?', { confirmLabel: 'Refuser', danger: true }))) return;
-          Store.rejectAssociation(b.dataset.rejectAssoc);
-          UI.toast('Proposition refusée.');
-        } else if (b.dataset.approveEvent) {
-          Store.setEventStatus(b.dataset.approveEvent, 'published');
-          UI.toast("Événement publié dans l'agenda.");
-        } else if (b.dataset.rejectEvent) {
-          if (!(await UI.confirm('Refuser cet événement ?', { confirmLabel: 'Refuser', danger: true }))) return;
-          Store.setEventStatus(b.dataset.rejectEvent, 'rejected');
-          UI.toast('Événement refusé.');
-        } else return;
-        rerender();
+        const li = b.closest('[data-kind]');
+        const kind = li.dataset.kind;
+        const id = li.dataset.id;
+        const isA = kind === 'association';
+        const x = isA ? Store.association(id) : Store.event(id);
+        if (!x) return;
+        const title = isA ? x.name : x.title;
+        const to = isA ? (x.submitter && x.submitter.email) || x.email : x.contactEmail;
+        const site = Store.site();
+        const what = isA ? `la fiche « ${title} »` : `l'événement « ${title} »`;
+
+        if (b.dataset.act === 'approve') {
+          isA ? Store.approveAssociation(id) : Store.setEventStatus(id, 'published');
+          UI.toast(isA ? 'Fiche validée et publiée.' : "Événement publié dans l'agenda.");
+          if (to && (await UI.confirm(`Prévenir ${to} que ${what} est en ligne ?`, { confirmLabel: 'Préparer l\'e-mail' })))
+            openMail(to, `${site.siteName} ${site.siteSubtitle} : ${title} est en ligne`, `Bonjour,\n\nBonne nouvelle : ${what} est désormais en ligne sur le portail.\n\n${location.href.split('#')[0]}\n\nBien à vous,\n${site.communeName}`);
+          return rerender();
+        }
+
+        const isInfo = b.dataset.act === 'info';
+        const m = UI.modal(
+          `<form class="form" novalidate>
+            <p>${isInfo ? `Demande de précision pour ${U.esc(what)}. Elle reste en attente.` : `Refus de ${U.esc(what)}. La demande est conservée dans l'historique.`}</p>
+            <label class="field"><span>${isInfo ? 'Votre question' : 'Motif du refus (facultatif)'}</span>
+              <textarea name="note" rows="4">${isInfo ? 'Pourriez-vous préciser ' : ''}</textarea></label>
+            ${to ? `<label class="check"><input type="checkbox" name="mail" checked><span>Préparer un e-mail à ${U.esc(to)}</span></label>` : '<p class="hint">Aucune adresse e-mail n\'est connue pour cette demande.</p>'}
+            <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Annuler</button>
+            <button class="btn ${isInfo ? 'btn-primary' : 'btn-danger'}">${isInfo ? 'Enregistrer la demande' : 'Refuser'}</button></div>
+          </form>`,
+          { title: isInfo ? 'Demander une précision' : 'Refuser la demande', size: 'modal-sm' }
+        );
+        const ta = m.querySelector('textarea');
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+        m.querySelector('form').addEventListener('submit', (ev) => {
+          ev.preventDefault();
+          const note = ev.target.note.value.trim();
+          if (isInfo && note.length < 5) return UI.formError(ev.target, 'Écrivez votre question.');
+          const mail = ev.target.mail && ev.target.mail.checked;
+          if (isInfo) Store.requestInfo(kind, id, note);
+          else if (isA) Store.rejectAssociation(id, note);
+          else Store.setEventStatus(id, 'rejected', note);
+          UI.closeModal();
+          UI.toast(isInfo ? 'Demande de précision enregistrée.' : 'Demande refusée.');
+          if (mail)
+            openMail(
+              to,
+              `${site.siteName} ${site.siteSubtitle} : ${isInfo ? 'précision demandée' : 'votre demande'} – ${title}`,
+              isInfo
+                ? `Bonjour,\n\nMerci pour votre demande concernant ${what}. Avant de la publier, nous avons besoin d'une précision :\n\n${note}\n\nVous pouvez répondre directement à cet e-mail.\n\nBien à vous,\n${site.communeName}`
+                : `Bonjour,\n\nMerci pour votre demande concernant ${what}. Nous ne pouvons malheureusement pas la publier${note ? ` pour la raison suivante :\n\n${note}` : '.'}\n\nN'hésitez pas à nous contacter pour en parler.\n\nBien à vous,\n${site.communeName}`
+            );
+          rerender();
+        });
       });
     },
   };
@@ -691,4 +775,6 @@
       });
     },
   };
+  WA.AdminPanels = WA.AdminPanels || {};
+  WA.AdminPanels.pendingCount = pendingCount;
 })(window.WA);

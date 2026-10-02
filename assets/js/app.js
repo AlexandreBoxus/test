@@ -58,7 +58,9 @@
     // Titre, navigation active, suivi, focus pour les lecteurs d'écran.
     const h1 = root.querySelector('h1');
     const title = TITLES[name] !== undefined ? TITLES[name] : h1 ? h1.textContent.trim() : '';
-    document.title = title ? `${title} – Réseau Associatif de Walhain` : 'Réseau Associatif de Walhain';
+    const siteTitle = WA.SITE ? `${WA.SITE.siteName} ${WA.SITE.siteSubtitle}`.trim() : 'Réseau Associatif de Walhain';
+    const waiting = Store.isAdmin() ? Store.associations('pending').length + Store.events('pending').length : 0;
+    document.title = `${waiting ? `(${waiting}) ` : ''}${title ? `${title} – ${siteTitle}` : siteTitle}`;
     document.querySelectorAll('.main-nav a').forEach((a) => {
       const section = a.dataset.section;
       const active = section === name || (section === 'repertoire' && /^association/.test(name)) || (section === 'agenda' && /^(event|evenement)/.test(name));
@@ -126,7 +128,83 @@
     if (document.getElementById('modal')) return true;
     if (/nouvelle|nouveau|modifier/.test(parseHash().path)) return true;
     const el = document.activeElement;
-    return !!(el && el.closest('#app') && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    if (el && el.closest('#app') && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return true;
+    // Un formulaire modifié ou affichant une erreur ne doit pas être effacé par une mise à jour.
+    return [...document.querySelectorAll('#app form')].some(
+      (form) =>
+        form.querySelector('.form-error') ||
+        [...form.elements].some((f) => {
+          if (f.type === 'checkbox' || f.type === 'radio') return f.checked !== f.defaultChecked;
+          if (f.tagName === 'SELECT') return [...f.options].some((o) => o.selected !== o.defaultSelected);
+          return /^(INPUT|TEXTAREA)$/.test(f.tagName) && f.type !== 'hidden' && f.value !== f.defaultValue;
+        })
+    );
+  };
+
+  /* ---------- Alerte « nouvelle demande » pour l'administration ---------- */
+  let knownPending = null;
+  const watchRequests = () => {
+    if (!Store.isAdmin()) {
+      knownPending = null;
+      return;
+    }
+    const pending = [...Store.associations('pending'), ...Store.events('pending')];
+    const ids = new Set(pending.map((x) => x.id));
+    if (knownPending) {
+      const fresh = pending.filter((x) => !knownPending.has(x.id));
+      if (fresh.length) {
+        const label = fresh.length === 1 ? `Nouvelle demande : ${fresh[0].name || fresh[0].title}` : `${fresh.length} nouvelles demandes à valider`;
+        UI.toast(label);
+        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+          try {
+            const n = new Notification(WA.SITE ? `${WA.SITE.siteName} ${WA.SITE.siteSubtitle}` : 'Réseau associatif', { body: label, icon: 'assets/icons/icon-192.png' });
+            n.onclick = () => {
+              window.focus();
+              location.hash = '#/admin/validation';
+            };
+          } catch (e) {
+            /* notifications indisponibles */
+          }
+        }
+      }
+    }
+    knownPending = ids;
+  };
+
+  /* ---------- Application installable (PWA) ---------- */
+  const initInstall = () => {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker', e));
+    }
+    const btn = document.getElementById('install-app');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (standalone) return;
+    let deferred = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      btn.hidden = false;
+    });
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios) btn.hidden = false;
+    btn.addEventListener('click', async () => {
+      if (deferred) {
+        deferred.prompt();
+        const choice = await deferred.userChoice;
+        if (choice.outcome === 'accepted') btn.hidden = true;
+        deferred = null;
+        return;
+      }
+      UI.modal(
+        `<ol class="install-steps">
+          <li>Touchez le bouton <strong>Partager</strong> ${UI.icon('Share2')} en bas de Safari.</li>
+          <li>Choisissez <strong>« Sur l'écran d'accueil »</strong>.</li>
+          <li>Touchez <strong>Ajouter</strong> : l'appli apparaît avec les autres applications.</li>
+        </ol>`,
+        { title: "Installer l'appli sur iPhone / iPad", size: 'modal-sm' }
+      );
+    });
+    window.addEventListener('appinstalled', () => (btn.hidden = true));
   };
 
   App.start = async () => {
@@ -144,6 +222,8 @@
     if (Store.mode === 'local') WA.Newsletter && WA.Newsletter.autoSend();
     // Base partagée : l'affichage suit les changements faits par les autres utilisateurs.
     if (Store.mode === 'firebase') Store.onChange(U.debounce(() => !isEditing() && App.render(), 200));
+    if (Store.mode === 'firebase') Store.onChange(U.debounce(watchRequests, 300));
+    initInstall();
     window.addEventListener('hashchange', App.render);
     App.render();
   };

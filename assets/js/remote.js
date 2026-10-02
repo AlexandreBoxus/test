@@ -134,7 +134,15 @@
       auth.useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
       db.useEmulator('127.0.0.1', 8085);
     }
+    // Appli hors connexion : garde une copie locale des données consultées.
+    try {
+      await db.enablePersistence({ synchronizeTabs: true });
+    } catch (e) {
+      console.info('Cache hors connexion indisponible', e.code || e);
+    }
     R.enabled = true;
+    // Contenus du site (textes, villages, thématiques…) : lisibles par tous.
+    await watch('site', db.collection('config').doc('site'), (d) => WA.Store.setSiteFromServer(d.exists ? d.data() : null));
     await new Promise((resolve) => {
       let first = true;
       auth.onAuthStateChanged(async (user) => {

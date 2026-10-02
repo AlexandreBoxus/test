@@ -4,6 +4,7 @@
   const V = (WA.views = WA.views || {});
 
   V.home = () => {
+    const site = WA.SITE || WA.siteDefaults();
     const assocs = Store.associations();
     const upcoming = Store.occurrences(U.today(), U.iso(U.addDays(new Date(), 120))).slice(0, 5);
     // Trois associations mises en avant, qui changent chaque semaine.
@@ -14,9 +15,9 @@
     <section class="hero">
       <div class="container hero-inner">
         <div class="hero-text">
-          <p class="eyebrow light">${UI.icon('Sprout')}Commune de Walhain</p>
-          <h1>Le réseau des associations<br>de nos cinq villages</h1>
-          <p class="lead">Trouvez une association, découvrez les activités près de chez vous et participez à la vie locale de Walhain, Tourinnes-Saint-Lambert, Perbais, Nil-Saint-Vincent et Nil-Pierreux.</p>
+          <p class="eyebrow light">${UI.icon('Sprout')}${U.esc(site.heroEyebrow)}</p>
+          <h1>${U.nl2br(site.heroTitle)}</h1>
+          <p class="lead">${U.nl2br(site.heroText)}</p>
           <form class="hero-search" action="#/associations" role="search" id="hero-search">
             <label class="sr-only" for="hero-q">Rechercher une association</label>
             ${UI.icon('Search')}<input id="hero-q" name="q" type="search" placeholder="Sport, jeux, nature, Perbais…">
@@ -29,7 +30,7 @@
         </div>
         <div class="hero-stats" aria-label="Chiffres clés">
           <div><strong>${assocs.length}</strong><span>associations</span></div>
-          <div><strong>5</strong><span>villages</span></div>
+          <div><strong>${WA.VILLAGES.length}</strong><span>village${WA.VILLAGES.length > 1 ? 's' : ''}</span></div>
           <div><strong>${Store.occurrences(U.today(), U.iso(U.addDays(new Date(), 90))).length}</strong><span>dates dans les 3 mois</span></div>
         </div>
       </div>
@@ -58,8 +59,8 @@
         </div>
         <aside class="panel cta-panel">
           ${UI.icon('Handshake', 'lg')}
-          <h2>Vous animez une association ?</h2>
-          <p>Faites connaître vos activités, trouvez des bénévoles et des partenaires, et coordonnez vos dates avec les autres associations.</p>
+          <h2>${U.esc(site.ctaTitle)}</h2>
+          <p>${U.nl2br(site.ctaText)}</p>
           <a class="btn btn-primary btn-block" href="#/associations/nouvelle">${UI.icon('Plus')}Référencer mon association</a>
           <a class="btn btn-soft btn-block" href="#/agenda/nouveau">${UI.icon('CalendarDays')}Publier un événement</a>
         </aside>
@@ -72,7 +73,7 @@
     </section>
 
     <section class="container section partners">
-      <p>Un outil de la <strong>Commune de Walhain</strong>, développé avec la <strong>CLDR</strong> et la <strong>Fondation Rurale de Wallonie</strong> dans le cadre de l'Opération de Développement Rural.</p>
+      <p>${U.nl2br(site.partnersText)}</p>
     </section>`;
   };
 

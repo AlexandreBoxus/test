@@ -6,6 +6,11 @@
   <title>Réseau Associatif de Walhain</title>
   <meta name="description" content="Portail des associations de la Commune de Walhain : répertoire, agenda associatif partagé et carte interactive.">
   <meta name="theme-color" content="#2f6b35">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Assos Walhain">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f6b35'/%3E%3Cpath d='M8 46c10-10 20-12 28-6s14 4 20-2v18H8z' fill='%23a7d08c'/%3E%3Cpath d='M32 14c8 4 10 12 6 20-8-2-12-8-6-20z' fill='%23f5efe3'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,8 +24,9 @@
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="#/" aria-label="Réseau Associatif de Walhain – accueil">
-        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#2f6b35"/><path d="M6 46c10-10 20-12 28-6s14 4 24-2v20H6z" fill="#a7d08c"/><path d="M6 52c14-6 26-6 36-1s12 3 16 1v10H6z" fill="#e9dfc9"/><path d="M33 12c9 4 11 13 6 21-9-2-13-9-6-21z" fill="#f5efe3"/><path d="M36 33c-2-6-2-11 0-16" stroke="#2f6b35" stroke-width="2" fill="none"/></svg>
-        <span class="brand-text"><strong>Réseau Associatif</strong><span>de Walhain</span></span>
+        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="logo-clip"><rect width="64" height="64" rx="16"/></clipPath></defs><g clip-path="url(#logo-clip)"><rect width="64" height="64" fill="#2f6b35"/><path d="M0 45c11-10 22-12 31-6s17 4 33-3v28H0z" fill="#a7d08c"/><path d="M0 52c15-6 29-6 39-1s15 3 25 0v13H0z" fill="#e9dfc9"/><path d="M31 9c10 4 12 14 7 23-10-2-14-10-7-23z" fill="#f5efe3"/><path d="M34 32c-2-6-2-12 0-18" stroke="#2f6b35" stroke-width="2.2" fill="none" stroke-linecap="round"/></g></svg>
+        <img class="brand-img" data-site="logo" alt="" hidden>
+        <span class="brand-text"><strong data-site="name">Réseau Associatif</strong><span data-site="subtitle">de Walhain</span></span>
       </a>
       <button class="nav-toggle icon-btn" id="nav-toggle" aria-expanded="false" aria-controls="main-nav" aria-label="Menu"><span data-icon="Menu"></span></button>
       <nav class="main-nav" id="main-nav" aria-label="Navigation principale">
@@ -28,6 +34,7 @@
         <a href="#/associations" data-section="repertoire"><span data-icon="Users"></span>Associations</a>
         <a href="#/agenda" data-section="agenda"><span data-icon="CalendarDays"></span>Agenda</a>
         <a href="#/carte" data-section="carte"><span data-icon="Map"></span>Carte</a>
+        <button type="button" class="nav-install" id="install-app" hidden><span data-icon="Download"></span>Installer l'appli</button>
         <a href="#/admin" data-section="admin" class="nav-admin"><span data-icon="Lock"></span>Admin<b class="count" id="admin-badge" hidden></b></a>
       </nav>
     </div>
@@ -38,8 +45,8 @@
   <footer class="site-footer">
     <div class="container footer-grid">
       <div>
-        <p class="footer-brand">Réseau Associatif de Walhain</p>
-        <p class="small">Le portail numérique des associations de Walhain, Tourinnes-Saint-Lambert, Perbais, Nil-Saint-Vincent et Nil-Pierreux.</p>
+        <p class="footer-brand" data-site="fullname">Réseau Associatif de Walhain</p>
+        <p class="small" data-site="footer">Le portail numérique des associations de Walhain, Tourinnes-Saint-Lambert, Perbais, Nil-Saint-Vincent et Nil-Pierreux.</p>
         <p class="small">Commune de Walhain · CLDR · Fondation Rurale de Wallonie</p>
       </div>
       <nav aria-label="Liens utiles">
@@ -62,7 +69,7 @@
         <label class="check small"><input type="checkbox" name="consent" required><span>J'accepte de recevoir la newsletter. Désinscription possible à tout moment.</span></label>
       </form>
     </div>
-    <div class="container footer-bottom small">© <span id="year"></span> Commune de Walhain – Prototype</div>
+    <div class="container footer-bottom small">© <span id="year"></span> <span data-site="commune">Commune de Walhain</span></div>
   </footer>
 
   <div class="consent" id="consent" role="region" aria-label="Information sur la vie privée" hidden>
@@ -85,6 +92,7 @@
   <script src="assets/js/forms.js"></script>
   <script src="assets/js/map.js"></script>
   <script src="assets/js/admin.js"></script>
+  <script src="assets/js/admin-content.js"></script>
   <script src="assets/js/pages.js"></script>
   <script src="assets/js/app.js"></script>
 </body>

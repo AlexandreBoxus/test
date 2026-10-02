@@ -117,6 +117,16 @@
           <label class="field"><span>Appel à collaboration <small class="muted">(bénévoles, matériel, locaux, projets communs…)</small></span><textarea name="needs" rows="2">${U.esc(a.needs)}</textarea></label>
         </fieldset>
 
+        ${
+          admin
+            ? ''
+            : `<fieldset class="panel panel-accent"><legend>${UI.icon('User')}Vos coordonnées</legend>
+          <p class="hint">Pour le suivi de votre demande uniquement : elles ne sont pas publiées. L'administration communale vous contactera si une précision est nécessaire.</p>
+          <div class="grid-2">
+            <label class="field"><span>Votre nom *</span><input name="submitterName" required autocomplete="name"></label>
+            <label class="field"><span>Votre e-mail *</span><input type="email" name="submitterEmail" required autocomplete="email"></label>
+          </div></fieldset>`
+        }
         ${admin ? '' : `<label class="check"><input type="checkbox" name="consent" required><span>Je certifie être habilité·e à représenter cette association et j'accepte que ces informations soient publiées sur le portail. <a href="#/confidentialite" target="_blank">Politique de confidentialité</a></span></label>`}
         <div class="form-actions sticky-actions">
           <a class="btn btn-ghost" href="${editing ? `#/associations/${a.id}` : '#/associations'}">Annuler</a>
@@ -162,6 +172,8 @@
       if (!get('description')) errors.push('la description complète');
       if (!villages.length) errors.push('au moins un village');
       if (get('email') && !U.isEmail(get('email'))) errors.push('une adresse e-mail valide');
+      if (!Store.isAdmin() && !get('submitterName')) errors.push('votre nom');
+      if (!Store.isAdmin() && !U.isEmail(get('submitterEmail'))) errors.push('votre e-mail (pour le suivi)');
       if (!Store.isAdmin() && !fd.get('consent')) errors.push('la case de consentement');
       if (errors.length) return UI.formError(form, `Merci de compléter ${errors.join(', ')}.`);
 
@@ -194,6 +206,7 @@
         activities,
         partners: get('partners'),
         needs: get('needs'),
+        ...(Store.isAdmin() ? {} : { submitter: { name: get('submitterName'), email: get('submitterEmail').toLowerCase(), at: Date.now() } }),
       };
       const button = form.querySelector('button.btn-primary');
       button.disabled = true;
